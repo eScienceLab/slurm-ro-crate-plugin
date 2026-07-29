@@ -13,6 +13,9 @@ extern const unsigned int spank_plugin_version = 1;
 // -----------------------------------------------------------------------------
 // Library headers
 
+#include <filesystem>
+#include <fstream>
+#include <cstring>
 #include <nlohmann/json.hpp>
 
 using json = nlohmann::json;
@@ -20,13 +23,24 @@ using json = nlohmann::json;
 // -----------------------------------------------------------------------------
 // Function prototypes
 
-void generate_crate();
+std::filesystem::path get_output_dir(int ac, char *av[]);
+void generate_crate(spank_t sp);
+
+// -----------------------------------------------------------------------------
+// Globals for passing between callbacks
+
+std::filesystem::path output_dir;
 
 // -----------------------------------------------------------------------------
 // SPANK skeleton
 
-int slurm_spank_init(spank_t, int, char **) {
+int slurm_spank_init(spank_t, int ac, char *av[]) {
   slurm_debug("spank_crate: -> init context=%d", spank_context());
+  output_dir = get_output_dir(ac, av);
+  if (output_dir.empty()) {
+    slurm_error("spank_crate: output_dir not set in plugstack.conf");
+    return SLURM_ERROR;
+  }
   return SLURM_SUCCESS;
 }
 
@@ -77,7 +91,7 @@ int slurm_spank_exit(spank_t sp, int, char **) {
   slurm_debug("spank_crate: -> exit remote=%d", spank_remote(sp));
   if (!spank_remote(sp)) return SLURM_SUCCESS;
 
-  generate_crate();
+  generate_crate(sp);
   return SLURM_SUCCESS;
 }
 
@@ -87,9 +101,27 @@ int slurm_spank_job_epilog(spank_t sp, int, char **) {
 }
 
 // -----------------------------------------------------------------------------
-// 
+// Crate generation functions
 
-void generate_crate() {
+std::filesystem::path get_output_dir(int ac, char *av[]) {
+  for (int i = 0; i < ac; i++) {
+    if (std::strncmp(av[i], "output_dir=", 11) == 0) {
+      return av[i] + 11;
+    }
+  }
+  return {};
+}
+
+void generate_crate(spank_t sp) {
+  // Get the Job ID of the run
+  uint32_t job_id;
+  if (spank_get_item(sp, S_JOB_ID, &job_id) != ESPANK_SUCCESS) return;
+
+  // Create an output directory to hold the metadata file
+  auto dir = output_dir / std::to_string(job_id);
+  std::filesystem::create_directories(dir);
+
+  // Create the json structure
   json j;
   j["pi"] = 3.141;
   j["happy"] = true;
@@ -98,7 +130,10 @@ void generate_crate() {
   j["answer"]["everything"] = 42;
   j["list"] = { 1, 0, 2 };
   j["object"] = { {"currency", "USD"}, {"value", 42.99} };
-  
-  slurm_debug("spank_crate: %s", j.dump().c_str());
-  return;
+
+  // Write out the json
+  std::ofstream f(dir / "ro-crate-metadata.json");
+  f << j.dump(2) << std::endl;
+
+  slurm_debug("spank_crate: wrote %s/ro-crate-metadata.json", dir.c_str());
 }
