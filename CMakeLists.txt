@@ -1,10 +1,8 @@
 cmake_minimum_required(VERSION 3.10)
 set(CMAKE_C_STANDARD 11)
-project (spank-crate C)
+set(CMAKE_CXX_STANDARD 20)
+project (spank-crate CXX)
 
-#
-# For finding packages:
-#
 include(CheckIncludeFiles)
 include(FindPackageHandleStandardArgs)
 
@@ -28,7 +26,7 @@ else (NOT SLURM_FOUND)
 endif (NOT SLURM_FOUND)
 mark_as_advanced (SLURM_LIBRARIES SLURM_INCLUDE_DIRS)
 
-add_library (spank-crate MODULE spank-crate.c)
+add_library (spank-crate MODULE spank-crate.cpp)
 include_directories (BEFORE ${SLURM_INCLUDE_DIRS})
 set_target_properties (spank-crate PROPERTIES PREFIX "" SUFFIX "" OUTPUT_NAME "spank-crate.so")
-target_compile_options(spank-crate PRIVATE -Wall -Wextra -O2 -pedantic -Wwrite-strings)
+target_compile_options(spank-crate PRIVATE -Wall -Wextra -O2 -pedantic)
