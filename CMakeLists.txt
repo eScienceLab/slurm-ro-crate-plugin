@@ -27,6 +27,6 @@ endif (NOT SLURM_FOUND)
 mark_as_advanced (SLURM_LIBRARIES SLURM_INCLUDE_DIRS)
 
 add_library (spank-crate MODULE spank-crate.cpp)
-include_directories (BEFORE ${SLURM_INCLUDE_DIRS})
+include_directories (BEFORE ${SLURM_INCLUDE_DIRS} ${CMAKE_CURRENT_SOURCE_DIR}/lib)
 set_target_properties (spank-crate PROPERTIES PREFIX "" SUFFIX "" OUTPUT_NAME "spank-crate.so")
 target_compile_options(spank-crate PRIVATE -Wall -Wextra -O2 -pedantic)
