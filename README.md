@@ -1,4 +1,4 @@
-# SPANK RO-Crate
+# Slurm RO-Crate Plugin
 
 This repository contains a SLURM plugin (SPANK) which enables the automatic generation of RO-Crate metadata for jobs submitted to a SLURM workload manager. The plugin captures job information and outputs it in the RO-Crate format.
 
