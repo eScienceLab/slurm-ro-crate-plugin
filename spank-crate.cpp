@@ -25,6 +25,7 @@ using json = nlohmann::json;
 
 std::filesystem::path get_output_dir(int ac, char *av[]);
 void generate_crate(spank_t sp);
+void crate_top_matter(json &j);
 
 // -----------------------------------------------------------------------------
 // Globals for passing between callbacks
@@ -121,19 +122,29 @@ void generate_crate(spank_t sp) {
   auto dir = output_dir / std::to_string(job_id);
   std::filesystem::create_directories(dir);
 
-  // Create the json structure
+  // Create the json structure and add the basic structure
   json j;
-  j["pi"] = 3.141;
-  j["happy"] = true;
-  j["name"] = "Niels";
-  j["nothing"] = nullptr;
-  j["answer"]["everything"] = 42;
-  j["list"] = { 1, 0, 2 };
-  j["object"] = { {"currency", "USD"}, {"value", 42.99} };
+  crate_top_matter(j);
 
   // Write out the json
   std::ofstream f(dir / "ro-crate-metadata.json");
   f << j.dump(2) << std::endl;
 
   slurm_debug("spank_crate: wrote %s/ro-crate-metadata.json", dir.c_str());
+}
+
+void crate_top_matter(json &j) {
+  // Add the context entry
+  j["@context"] = {
+    "https://w3id.org/ro/crate/1.1/context",
+    "https://w3id.org/ro/terms/workflow-run/context"
+  };
+
+  // Add the metadata file entry
+  j["@graph"] = {
+    {"@id", "ro-crate-metadata.json"},
+    {"@type", "CreativeWork"},
+    {"conformsTo", {{"@id", "https://w3id.org/ro/crate/1.1"}}},
+    {"about", {{"@id", "./"}}}
+  };  
 }
