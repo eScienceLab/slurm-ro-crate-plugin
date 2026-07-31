@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.10)
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 20)
-project (spank-crate CXX)
+project (slurm-ro-crate-plugin CXX)
 
 include(CheckIncludeFiles)
 include(FindPackageHandleStandardArgs)
@@ -26,7 +26,9 @@ else (NOT SLURM_FOUND)
 endif (NOT SLURM_FOUND)
 mark_as_advanced (SLURM_LIBRARIES SLURM_INCLUDE_DIRS)
 
-add_library (spank-crate MODULE spank-crate.cpp)
+add_library (slurm-ro-crate-plugin MODULE slurm-ro-crate-plugin.cpp)
 include_directories (BEFORE ${SLURM_INCLUDE_DIRS} ${CMAKE_CURRENT_SOURCE_DIR}/lib)
-set_target_properties (spank-crate PROPERTIES PREFIX "" SUFFIX "" OUTPUT_NAME "spank-crate.so")
-target_compile_options(spank-crate PRIVATE -Wall -Wextra -O2 -pedantic)
+set_target_properties (slurm-ro-crate-plugin PROPERTIES PREFIX "" SUFFIX "" OUTPUT_NAME "slurm-ro-crate-plugin.so")
+target_compile_options(slurm-ro-crate-plugin PRIVATE -Wall -Wextra -O2 -pedantic)
+
+install(TARGETS slurm-ro-crate-plugin LIBRARY DESTINATION lib/slurm)
