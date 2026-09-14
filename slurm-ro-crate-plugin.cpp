@@ -16,16 +16,15 @@ extern const unsigned int spank_plugin_version = 1;
 #include <filesystem>
 #include <fstream>
 #include <cstring>
-#include <nlohmann/json.hpp>
+#include <rocrate/rocrate.hpp>
 
-using json = nlohmann::json;
+using crate = rocrate::crate;
 
 // -----------------------------------------------------------------------------
 // Function prototypes
 
 std::filesystem::path get_output_dir(int ac, char *av[]);
 void generate_crate(spank_t sp);
-void crate_top_matter(json &j);
 
 // -----------------------------------------------------------------------------
 // Globals for passing between callbacks
@@ -123,28 +122,11 @@ void generate_crate(spank_t sp) {
   std::filesystem::create_directories(dir);
 
   // Create the json structure and add the basic structure
-  json j;
-  crate_top_matter(j);
+  rocrate crate;
 
   // Write out the json
   std::ofstream f(dir / "ro-crate-metadata.json");
   f << j.dump(2) << std::endl;
 
   slurm_debug("slurm_ro_crate_plugin: wrote %s/ro-crate-metadata.json", dir.c_str());
-}
-
-void crate_top_matter(json &j) {
-  // Add the context entry
-  j["@context"] = {
-    "https://w3id.org/ro/crate/1.1/context",
-    "https://w3id.org/ro/terms/workflow-run/context"
-  };
-
-  // Add the metadata file entry
-  j["@graph"] = {
-    {"@id", "ro-crate-metadata.json"},
-    {"@type", "CreativeWork"},
-    {"conformsTo", {{"@id", "https://w3id.org/ro/crate/1.1"}}},
-    {"about", {{"@id", "./"}}}
-  };  
 }
