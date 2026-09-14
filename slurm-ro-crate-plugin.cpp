@@ -16,9 +16,9 @@ extern const unsigned int spank_plugin_version = 1;
 #include <filesystem>
 #include <fstream>
 #include <cstring>
-#include <rocrate/rocrate.hpp>
+#include <ro-crate.hpp>
 
-using crate = rocrate::crate;
+using ROCrate = rocrate::ROCrate;
 
 // -----------------------------------------------------------------------------
 // Function prototypes
@@ -121,12 +121,10 @@ void generate_crate(spank_t sp) {
   auto dir = output_dir / std::to_string(job_id);
   std::filesystem::create_directories(dir);
 
-  // Create the json structure and add the basic structure
-  rocrate crate;
+  // Create the RO-Crate object
+  ROCrate crate;
 
   // Write out the json
-  std::ofstream f(dir / "ro-crate-metadata.json");
-  f << j.dump(2) << std::endl;
-
+  crate.writeOut(dir / "ro-crate-metadata.json");
   slurm_debug("slurm_ro_crate_plugin: wrote %s/ro-crate-metadata.json", dir.c_str());
 }
