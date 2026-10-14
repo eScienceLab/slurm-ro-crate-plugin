@@ -97,7 +97,7 @@ class ROCrateManager {
 // -----------------------------------------------------------------------------
 // SPANK skeleton
 
-int slurm_spank_init(spank_t sp, int ac, char *av[]) {
+int slurm_spank_init(spank_t, int, char **) {
   slurm_debug("slurm_ro_crate_plugin: -> init context=%d", spank_context());
   return SLURM_SUCCESS;
 }
@@ -138,8 +138,17 @@ int slurm_spank_user_init(spank_t sp, int, char **) {
   return SLURM_SUCCESS;
 }
 
-int slurm_spank_task_init_privileged(spank_t, int, char **) {
+int slurm_spank_task_init_privileged(spank_t sp, int ac, char *av[]) {
   slurm_debug("slurm_ro_crate_plugin: -> task_init_privileged");
+
+  try {
+    ROCrateManager manager(sp, ac, av);
+    // Populate manager.crate here
+  } catch (const std::exception &e) {
+    slurm_error("slurm_ro_crate_plugin: %s", e.what());
+    return SLURM_ERROR;
+  }
+
   return SLURM_SUCCESS;
 }
 
@@ -148,23 +157,49 @@ int slurm_spank_task_init(spank_t, int, char **) {
   return SLURM_SUCCESS;
 }
 
-int slurm_spank_task_post_fork(spank_t, int, char **) {
+int slurm_spank_task_post_fork(spank_t sp, int ac, char *av[]) {
   slurm_debug("slurm_ro_crate_plugin: -> task_post_fork");
+
+  try {
+    ROCrateManager manager(sp, ac, av);
+    // Populate manager.crate here
+  } catch (const std::exception &e) {
+    slurm_error("slurm_ro_crate_plugin: %s", e.what());
+    return SLURM_ERROR;
+  }
+
   return SLURM_SUCCESS;
 }
 
-int slurm_spank_task_exit(spank_t sp, int, char **) {
+int slurm_spank_task_exit(spank_t sp, int ac, char *av[]) {
   int status;
   slurm_debug("slurm_ro_crate_plugin: -> task_exit");
+
+  try {
+    ROCrateManager manager(sp, ac, av);
+    // Populate manager.crate here
+  } catch (const std::exception &e) {
+    slurm_error("slurm_ro_crate_plugin: %s", e.what());
+    return SLURM_ERROR;
+  }
+
   if (spank_get_item(sp, S_TASK_EXIT_STATUS, &status) == ESPANK_SUCCESS)
     slurm_debug("slurm_ro_crate_plugin: exit_status=%d", status);
+  
   return SLURM_SUCCESS;
 }
 
-int slurm_spank_exit(spank_t sp, int, char **) {
+int slurm_spank_exit(spank_t sp, int ac, char *av[]) {
   slurm_debug("slurm_ro_crate_plugin: -> exit remote=%d", spank_remote(sp));
   if (!spank_remote(sp)) return SLURM_SUCCESS;
 
+  try {
+    ROCrateManager manager(sp, ac, av);
+    // Populate manager.crate here
+  } catch (const std::exception &e) {
+    slurm_error("slurm_ro_crate_plugin: %s", e.what());
+    return SLURM_ERROR;
+  }
   return SLURM_SUCCESS;
 }
 
@@ -173,12 +208,11 @@ int slurm_spank_job_epilog(spank_t sp, int ac, char *av[]) {
 
   try {
     ROCrateManager manager(sp, ac, av);
-    // TODO: populate manager.crate with job metadata before it's written out.
+    // Populate manager.crate here
   } catch (const std::exception &e) {
     slurm_error("slurm_ro_crate_plugin: %s", e.what());
     return SLURM_ERROR;
   }
-
   return SLURM_SUCCESS;
 }
 
