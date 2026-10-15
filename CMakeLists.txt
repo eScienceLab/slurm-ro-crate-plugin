@@ -63,6 +63,10 @@ if (BUILD_TESTING)
   )
 
   target_compile_features(slurm-ro-crate-plugin_tests PRIVATE cxx_std_20)
+  target_compile_definitions(slurm-ro-crate-plugin_tests
+    PRIVATE
+      TEST_SOURCE_DIR=\"${CMAKE_CURRENT_SOURCE_DIR}\"
+  )
 
   target_link_libraries(slurm-ro-crate-plugin_tests
     PRIVATE

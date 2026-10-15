@@ -2,9 +2,7 @@
 //
 // This assumes a working Slurm environment is already present and reachable
 // (sbatch/srun on PATH, slurmd/slurmctld running, the plugin already built
-// and registered in plugstack.conf) -- it does not set up, configure, or
-// manage the Slurm stack itself. It submits a trivial real job and checks
-// that the plugin produced a valid RO-Crate for it.
+// and registered in plugstack.conf)
 
 #include <catch2/catch_test_macros.hpp>
 #include <nlohmann/json.hpp>
@@ -23,7 +21,7 @@ std::string output_dir = "/tmp/spank-crates";
 std::string submit_job(const std::vector<std::string>& params) {
   // Form the sbatch command
   std::vector<std::string> args = {
-    "sbatch", "--parsable", "--wait", "--wrap=true"
+    "sbatch", "--parsable", "--wait"
   };
   args.insert(args.end(), params.begin(), params.end());
 
@@ -47,8 +45,10 @@ std::string submit_job(const std::vector<std::string>& params) {
 }
 
 TEST_CASE("a submitted job produces a valid RO-Crate", "[integration]") {
+  std::string fixtures_dir = std::string(TEST_SOURCE_DIR) + "/tests/fixtures";
+  
   // Submit a trivial job and get its job ID.
-  std::string job_id = submit_job({});
+  std::string job_id = submit_job({fixtures_dir + "/single-task.slurm"});
   REQUIRE_FALSE(job_id.empty());
 
   // Assert that the RO-Crate file exists and is readable.
@@ -80,9 +80,11 @@ TEST_CASE("a submitted job produces a valid RO-Crate", "[integration]") {
   REQUIRE(has_root_descriptor);
 }
 
-TEST_CASE("Multi-task job produces a valid RO-Crate", "[integration]") {
+TEST_CASE("Multi-task job produces a valid RO-Crate with multiple CreateAction entities", "[integration]") {
+  std::string fixtures_dir = std::string(TEST_SOURCE_DIR) + "/tests/fixtures";
+
   // Submit a multi-task job and get its job ID.
-  std::string job_id = submit_job({"--ntasks=2", "--wrap=true"});
+  std::string job_id = submit_job({fixtures_dir + "/multi-task.slurm"});
   REQUIRE_FALSE(job_id.empty());
 
   // Assert that the RO-Crate file exists and is readable.
@@ -93,5 +95,16 @@ TEST_CASE("Multi-task job produces a valid RO-Crate", "[integration]") {
 
   std::ifstream file(crate_path);
   REQUIRE(file.good());
+
+  nlohmann::json crate = nlohmann::json::parse(file);
+  REQUIRE(crate.contains("@graph"));
+
+  // Assert that there are multiple CreateAction entities in the RO-Crate.
+  std::vector<std::string> task_entity_ids;
+  for (const auto &entity : crate.at("@graph")) {
+    if (entity.at("@type") == "CreateAction")
+      task_entity_ids.push_back(entity.at("@id").get<std::string>());
+  }
+
+  REQUIRE(task_entity_ids.size() == 3);
 }
-  
