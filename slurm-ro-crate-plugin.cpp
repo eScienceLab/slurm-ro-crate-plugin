@@ -50,7 +50,7 @@ class ROCrateManager {
       std::filesystem::create_directories(crate_path.parent_path());
 
       // Check if the crate exists, if not, create a new one
-      bool crate_exists = std::filesystem::exists(crate_path);
+      bool crate_exists = std::filesystem::exists(crate_path); 
 
       if (!crate_exists) {
         crate = ROCrate();
@@ -107,14 +107,7 @@ int slurm_spank_job_prolog(spank_t sp, int ac, char *av[]) {
 
   try {
     ROCrateManager manager(sp, ac, av);
-
-    // Define alice entity
-    Entity alice({"Person"});
-    alice.set("name", "Alice");
-
-    // Add alice to the crate -- must happen while manager is still in
-    // scope, since its destructor is what writes the crate back out.
-    manager.crate.addEntity("alice", alice);
+    // Populate manager.crate here
   } catch (const std::exception &e) {
     slurm_error("slurm_ro_crate_plugin: Failed to initialize RO-Crate: %s", e.what());
     return SLURM_ERROR;
@@ -177,7 +170,33 @@ int slurm_spank_task_exit(spank_t sp, int ac, char *av[]) {
 
   try {
     ROCrateManager manager(sp, ac, av);
-    // Populate manager.crate here
+
+    // Get task and step IDs, exit status
+    int task_id = 0;
+    if (spank_get_item(sp, S_TASK_ID, &task_id) != ESPANK_SUCCESS) {
+      slurm_error("slurm_ro_crate_plugin: Failed to get task ID");
+      return SLURM_ERROR;
+    }
+
+    int step_id = 0;
+    if (spank_get_item(sp, S_JOB_STEPID, &step_id) != ESPANK_SUCCESS) {
+      slurm_error("slurm_ro_crate_plugin: Failed to get step ID");
+      return SLURM_ERROR;
+    }
+
+    uint32_t status = 0;
+    if (spank_get_item(sp, S_TASK_EXIT_STATUS, &status) != ESPANK_SUCCESS) {
+      slurm_error("slurm_ro_crate_plugin: Failed to get exit status");
+      return SLURM_ERROR;
+    }
+
+    // Add the IDs and exit status to the RO-Crate
+    Entity task({"CreateAction"});
+    task.set("id", std::to_string(task_id));
+    task.set("step_id", std::to_string(step_id));
+    task.set("exit_status", std::to_string(status));
+
+    manager.crate.addEntity("#" + std::to_string(step_id) + "_" + std::to_string(task_id), task);
   } catch (const std::exception &e) {
     slurm_error("slurm_ro_crate_plugin: %s", e.what());
     return SLURM_ERROR;
