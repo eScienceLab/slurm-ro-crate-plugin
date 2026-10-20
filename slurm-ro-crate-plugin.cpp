@@ -177,8 +177,8 @@ int slurm_spank_task_exit(spank_t sp, int ac, char *av[]) {
     ROCrateManager manager(sp, ac, av);
 
     // Get task and step IDs, exit status
-    int task_id = 0;
-    if (spank_get_item(sp, S_TASK_ID, &task_id) != ESPANK_SUCCESS) {
+    uint32_t task_id = 0;
+    if (spank_get_item(sp, S_TASK_GLOBAL_ID, &task_id) != ESPANK_SUCCESS) {
       slurm_error("slurm_ro_crate_plugin: Failed to get task ID");
       return SLURM_ERROR;
     }
