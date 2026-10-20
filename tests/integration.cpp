@@ -5,7 +5,7 @@
 // and registered in plugstack.conf)
 
 #include <catch2/catch_test_macros.hpp>
-#include <nlohmann/json.hpp>
+#include <json.hpp>
 #include <reproc++/run.hpp>
 
 #include <cstdlib>
