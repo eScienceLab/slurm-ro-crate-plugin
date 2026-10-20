@@ -72,7 +72,12 @@ class ROCrateManager {
       }
 
       // Read in the crate
-      crate.readIn(crate_path);
+      try {
+        crate.readIn(crate_path);
+      } catch (...) {
+        close(lock_fd);
+        throw;
+      }
     }
 
     ~ROCrateManager() {
