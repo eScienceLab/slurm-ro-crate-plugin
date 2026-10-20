@@ -49,26 +49,26 @@ class ROCrateManager {
       // Ensure the path exists
       std::filesystem::create_directories(crate_path.parent_path());
 
-      // Check if the crate exists, if not, create a new one
-      bool crate_exists = std::filesystem::exists(crate_path); 
-
-      if (!crate_exists) {
-        crate = ROCrate();
-        crate.writeOut(crate_path);
-      }
-
-      // Acquire a lock on the crate file to prevent concurrent writes
+      // Lock before inspecting or initializing the crate file.
       lock_fd = open(crate_path.c_str(), O_RDWR | O_CREAT, 0666);
       if (lock_fd == -1) {
         throw std::runtime_error("Failed to open crate file for locking");
       }
 
-      // Block until we can acquire the lock
       while (flock(lock_fd, LOCK_EX) == -1) {
         if (errno != EINTR) {
           close(lock_fd);
           throw std::runtime_error("Failed to acquire lock on crate file");
         }
+      }
+
+      try {
+        if (std::filesystem::file_size(crate_path) == 0) {
+          crate.writeOut(crate_path);
+        }
+      } catch (...) {
+        close(lock_fd);
+        throw;
       }
 
       // Read in the crate
