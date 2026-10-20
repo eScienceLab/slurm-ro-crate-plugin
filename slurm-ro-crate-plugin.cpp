@@ -247,6 +247,8 @@ std::filesystem::path get_output_dir(int ac, char *av[]) {
   // Look for the output_dir argument in the plugstack.conf file
   for (int i = 0; i < ac; i++) {
     if (std::strncmp(av[i], "output_dir=", 11) == 0) {
+      if (av[i][11] == '\0')
+        throw std::runtime_error("output_dir is empty in plugstack.conf");
       return av[i] + 11;
     }
   }
