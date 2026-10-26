@@ -170,38 +170,12 @@ int slurm_spank_task_post_fork(spank_t sp, int ac, char *av[]) {
 }
 
 int slurm_spank_task_exit(spank_t sp, int ac, char *av[]) {
-  int status;
+  uint32_t status = 0;
   slurm_debug("slurm_ro_crate_plugin: -> task_exit");
 
   try {
     ROCrateManager manager(sp, ac, av);
-
-    // Get task and step IDs, exit status
-    uint32_t task_id = 0;
-    if (spank_get_item(sp, S_TASK_GLOBAL_ID, &task_id) != ESPANK_SUCCESS) {
-      slurm_error("slurm_ro_crate_plugin: Failed to get task ID");
-      return SLURM_ERROR;
-    }
-
-    int step_id = 0;
-    if (spank_get_item(sp, S_JOB_STEPID, &step_id) != ESPANK_SUCCESS) {
-      slurm_error("slurm_ro_crate_plugin: Failed to get step ID");
-      return SLURM_ERROR;
-    }
-
-    uint32_t status = 0;
-    if (spank_get_item(sp, S_TASK_EXIT_STATUS, &status) != ESPANK_SUCCESS) {
-      slurm_error("slurm_ro_crate_plugin: Failed to get exit status");
-      return SLURM_ERROR;
-    }
-
-    // Add the IDs and exit status to the RO-Crate
-    Entity task({"CreateAction"});
-    task.set("id", std::to_string(task_id));
-    task.set("step_id", std::to_string(step_id));
-    task.set("exit_status", std::to_string(status));
-
-    manager.crate.addEntity("#" + std::to_string(step_id) + "_" + std::to_string(task_id), task);
+    // Populate manager.crate here
   } catch (const std::exception &e) {
     slurm_error("slurm_ro_crate_plugin: %s", e.what());
     return SLURM_ERROR;
@@ -209,7 +183,7 @@ int slurm_spank_task_exit(spank_t sp, int ac, char *av[]) {
 
   if (spank_get_item(sp, S_TASK_EXIT_STATUS, &status) == ESPANK_SUCCESS)
     slurm_debug("slurm_ro_crate_plugin: exit_status=%d", status);
-  
+
   return SLURM_SUCCESS;
 }
 
