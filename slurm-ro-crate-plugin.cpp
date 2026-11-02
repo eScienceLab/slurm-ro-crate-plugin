@@ -63,6 +63,7 @@ class ROCrateManager {
         }
       }
 
+      // If the crate file is empty, write out the crate to initialize it
       try {
         if (std::filesystem::file_size(crate_path) == 0) {
           crate.writeOut(crate_path);
@@ -120,6 +121,19 @@ int slurm_spank_job_prolog(spank_t sp, int ac, char *av[]) {
     } catch (const std::runtime_error &) {
       uint32_t job_id = get_job_id(sp);
       uid_t uid = get_uid(sp);
+
+      // Extend context entity 
+      manager.crate.addContext("wfr", "https://w3id.org/ro/terms/workflow-run/context");
+
+      // Add the workflow run process entity to the crate
+      Entity wfrunProcess({"CreativeWork"});
+      wfrunProcess.set("name", "Process Run Crate");
+      wfrunProcess.set("version", "0.6");
+      manager.crate.addEntity("https://w3id.org/ro/wfrun/process/0.6", wfrunProcess);
+
+      // Add the conformsTo property to the root data entity
+      Entity rootData = manager.crate.getEntity("./");
+      rootData.set("conformsTo", wfrunProcess);
 
       Entity agent({"Person"});
       agent.set("identifier", std::to_string(uid));
