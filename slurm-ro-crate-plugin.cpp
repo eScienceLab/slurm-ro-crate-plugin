@@ -30,6 +30,7 @@ using Entity = rocrate::Entity;
 
 std::filesystem::path get_output_dir(int ac, char *av[]);
 uint32_t get_job_id(spank_t sp);
+uid_t get_uid(spank_t sp);
 
 // -----------------------------------------------------------------------------
 // RO-Crate read / write boilerplate
@@ -112,7 +113,23 @@ int slurm_spank_job_prolog(spank_t sp, int ac, char *av[]) {
 
   try {
     ROCrateManager manager(sp, ac, av);
-    // Populate manager.crate here
+
+    // Populate the job entity if it doesn't already exist
+    try {
+      manager.crate.getEntity("#job");
+    } catch (const std::runtime_error &) {
+      uint32_t job_id = get_job_id(sp);
+      uid_t uid = get_uid(sp);
+
+      Entity agent({"Person"});
+      agent.set("identifier", std::to_string(uid));
+      manager.crate.addEntity("#agent-" + std::to_string(uid), agent);
+
+      Entity job({"CreateAction"});
+      job.set("identifier", std::to_string(job_id));
+      job.set("agent", agent);
+      manager.crate.addEntity("#job", job);
+    }
   } catch (const std::exception &e) {
     slurm_error("slurm_ro_crate_plugin: Failed to initialize RO-Crate: %s", e.what());
     return SLURM_ERROR;
@@ -237,4 +254,12 @@ uint32_t get_job_id(spank_t sp) {
     throw std::runtime_error("Failed to get job ID");
   }
   return job_id;
+}
+
+uid_t get_uid(spank_t sp) {
+  uid_t uid;
+  if (spank_get_item(sp, S_JOB_UID, &uid) != ESPANK_SUCCESS) {
+    throw std::runtime_error("Failed to get job UID");
+  }
+  return uid;
 }

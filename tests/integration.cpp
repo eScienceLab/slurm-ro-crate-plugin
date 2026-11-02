@@ -78,6 +78,26 @@ TEST_CASE("a submitted job produces a valid RO-Crate", "[integration]") {
 
   REQUIRE(has_root_dataset);
   REQUIRE(has_root_descriptor);
+
+  // Assert that the RO-Crate contains a job_id and user_id in the root dataset.
+  bool has_job = false;
+  for (const auto &entity : crate.at("@graph")) {
+    if (entity.at("@id") == "#job") {
+      has_job = true;
+      REQUIRE(entity.at("@type") == "CreateAction");
+      REQUIRE(entity.at("identifier") == job_id);
+    } 
+  }
+  REQUIRE(has_job);
+
+  bool has_agent = false;
+  for (const auto &entity : crate.at("@graph")) {
+    if (entity.at("@id") == "#agent") {
+      has_agent = true;
+      REQUIRE(entity.at("@type") == "Person");
+      REQUIRE(entity.contains("identifier"));
+    } 
+  }
 }
 
 TEST_CASE("Multi-task job produces a valid RO-Crate", "[integration]") {
