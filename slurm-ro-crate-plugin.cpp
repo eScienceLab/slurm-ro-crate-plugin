@@ -31,6 +31,7 @@ using Entity = rocrate::Entity;
 std::filesystem::path get_output_dir(int ac, char *av[]);
 uint32_t get_job_id(spank_t sp);
 uid_t get_uid(spank_t sp);
+int get_job_exit_code(spank_t sp);
 
 // -----------------------------------------------------------------------------
 // RO-Crate read / write boilerplate
@@ -100,7 +101,6 @@ class ROCrateManager {
     std::filesystem::path crate_path;
     int lock_fd;
 };
-
 // -----------------------------------------------------------------------------
 // SPANK skeleton
 
@@ -117,7 +117,7 @@ int slurm_spank_job_prolog(spank_t sp, int ac, char *av[]) {
 
     // Populate the job entity if it doesn't already exist
     try {
-      manager.crate.getEntity("#job");
+      manager.crate.getEntity("#job" + std::to_string(get_job_id(sp)));
     } catch (const std::runtime_error &) {
       uint32_t job_id = get_job_id(sp);
       uid_t uid = get_uid(sp);
@@ -135,14 +135,34 @@ int slurm_spank_job_prolog(spank_t sp, int ac, char *av[]) {
       Entity rootData = manager.crate.getEntity("./");
       rootData.set("conformsTo", wfrunProcess);
 
+      // Add the agent entity to the crate
       Entity agent({"Person"});
       agent.set("identifier", std::to_string(uid));
       manager.crate.addEntity("#agent-" + std::to_string(uid), agent);
 
+      // Add the job entity to the crate
+      std::string start_time = get_current_time();
+      
       Entity job({"CreateAction"});
       job.set("identifier", std::to_string(job_id));
+      job.set("name", "Slurm Job " + std::to_string(job_id));
+      job.set("description", "Slurm job " + std::to_string(job_id) + " executed on " + start_time);
+      job.set("startTime", start_time);
       job.set("agent", agent);
-      manager.crate.addEntity("#job", job);
+      manager.crate.addEntity("#job" + std::to_string(job_id), job);
+      rootData.set("mentions", job);
+
+      // Define the instrument entity
+      Entity instrument({"SoftwareApplication"});
+      manager.crate.addEntity("#instrument", instrument);
+
+      // Define the object (input) entity
+      Entity object({"Dataset"});
+      manager.crate.addEntity("#object", object);
+
+      // Define the result (output) entity
+      Entity result({"Dataset"});
+      manager.crate.addEntity("#result", result);
     }
   } catch (const std::exception &e) {
     slurm_error("slurm_ro_crate_plugin: Failed to initialize RO-Crate: %s", e.what());
@@ -237,7 +257,12 @@ int slurm_spank_job_epilog(spank_t sp, int ac, char *av[]) {
 
   try {
     ROCrateManager manager(sp, ac, av);
-    // Populate manager.crate here
+
+    Entity job = manager.crate.getEntity("#job" + std::to_string(get_job_id(sp)));
+
+    // Update the end time of the job entity to the current time
+    std::string end_time = get_current_time();
+    job.set("endTime", end_time);
   } catch (const std::exception &e) {
     slurm_error("slurm_ro_crate_plugin: %s", e.what());
     return SLURM_ERROR;
@@ -277,3 +302,21 @@ uid_t get_uid(spank_t sp) {
   }
   return uid;
 }
+
+int get_job_exit_code(spank_t sp) {
+  int exit_code;
+  if (spank_get_item(sp, S_TASK_EXIT_STATUS, &exit_code) != ESPANK_SUCCESS) {
+    throw std::runtime_error("Failed to get task exit status");
+  }
+  return exit_code;
+}
+
+std::string get_current_time() {
+  std::time_t time = std::time({});
+  char timeString[std::size("yyyy-mm-ddThh:mm:ssZ")];
+  std::strftime(std::data(timeString), std::size(timeString),
+                "%FT%TZ", std::gmtime(&time));
+  slurm_debug("slurm_ro_crate_plugin: Current time is %s", timeString);
+  return std::string(timeString);
+};
+

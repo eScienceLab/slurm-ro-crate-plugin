@@ -81,8 +81,9 @@ TEST_CASE("a submitted job produces a valid RO-Crate", "[integration]") {
 
   // Assert that the RO-Crate contains a job_id and user_id in the root dataset.
   bool has_job = false;
+  std::string job_tag = "#job" + job_id;
   for (const auto &entity : crate.at("@graph")) {
-    if (entity.at("@id") == "#job") {
+    if (entity.at("@id") == job_tag) {
       has_job = true;
       REQUIRE(entity.at("@type") == "CreateAction");
       REQUIRE(entity.at("identifier") == job_id);
