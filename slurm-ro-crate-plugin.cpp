@@ -47,6 +47,7 @@ int get_job_exit_code(spank_t sp);
 std::string get_current_time();
 std::vector<std::string> get_job_argv(spank_t sp);
 Batch parse_batch_script(const std::string &script_path);
+void add_batch_to_crate(ROCrate &crate, const Batch &batch, Entity &job);
 
 // -----------------------------------------------------------------------------
 // RO-Crate read / write boilerplate
@@ -205,7 +206,15 @@ int slurm_spank_task_init_privileged(spank_t sp, int ac, char *av[]) {
     // Check if argument is batch script
     if (job_argv.size() > 0 && job_argv[0].find("slurm_script") != std::string::npos) {
       slurm_info("slurm_ro_crate_plugin: Detected batch script");
-      parse_batch_script(job_argv[0]);
+
+      // Get the job entity from the crate to link the batch script to
+      Entity job = manager.crate.getEntity("#job" + std::to_string(get_job_id(sp)));
+      
+      // Parse the batch script
+      Batch batch = parse_batch_script(job_argv[0]);
+
+      // Add the batch script to the crate
+      add_batch_to_crate(manager.crate, batch, job);
     }
   } catch (const std::exception &e) {
     slurm_error("slurm_ro_crate_plugin: %s", e.what());
@@ -420,4 +429,26 @@ Batch parse_batch_script(const std::string &script_path) {
   
 
   return batch;
+}
+
+void add_batch_to_crate(ROCrate &crate, const Batch &batch, Entity &job) {
+  for (const auto &module : batch.modules) {
+    // Create a unique identifier for the module entity based on its name and version
+    std::string module_id = "#module_" + module.name +
+                             (module.version.empty() ? "" : ("_" + module.version));
+
+    // Check if the module entity already exists in the crate, and if not, create it
+    try {
+      crate.getEntity(module_id);
+    } catch (const std::runtime_error &) {
+      Entity module_entity({"SoftwareApplication"});
+      module_entity.set("name", module.name);
+      if (!module.version.empty()) {
+        module_entity.set("softwareVersion", module.version);
+      }
+      crate.addEntity(module_id, module_entity);
+    }
+
+    job.set("instrument", crate.getEntity(module_id));
+  }
 }
