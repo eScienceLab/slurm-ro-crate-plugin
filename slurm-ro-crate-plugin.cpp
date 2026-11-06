@@ -21,9 +21,21 @@ extern const unsigned int spank_plugin_version = 1;
 #include <cstring>
 #include <stdexcept>
 #include <ro-crate.hpp>
+#include "peglib.h"
 
 using ROCrate = rocrate::ROCrate;
 using Entity = rocrate::Entity;
+
+struct Module {
+  std::string name;
+  std::string version;
+};
+
+struct Batch {
+  std::string script_path;
+  std::vector<Module> modules;
+  std::vector<std::string> executables;
+};
 
 // -----------------------------------------------------------------------------
 // Function prototypes
@@ -32,6 +44,9 @@ std::filesystem::path get_output_dir(int ac, char *av[]);
 uint32_t get_job_id(spank_t sp);
 uid_t get_uid(spank_t sp);
 int get_job_exit_code(spank_t sp);
+std::string get_current_time();
+std::vector<std::string> get_job_argv(spank_t sp);
+Batch parse_batch_script(const std::string &script_path);
 
 // -----------------------------------------------------------------------------
 // RO-Crate read / write boilerplate
@@ -104,14 +119,11 @@ class ROCrateManager {
 // -----------------------------------------------------------------------------
 // SPANK skeleton
 
-int slurm_spank_init(spank_t, int, char **) {
-  slurm_debug("slurm_ro_crate_plugin: -> init context=%d", spank_context());
+int slurm_spank_init(spank_t sp, int, char **) {
   return SLURM_SUCCESS;
 }
 
 int slurm_spank_job_prolog(spank_t sp, int ac, char *av[]) {
-  slurm_debug("slurm_ro_crate_plugin: -> job_prolog remote=%d", spank_remote(sp));
-
   try {
     ROCrateManager manager(sp, ac, av);
 
@@ -173,26 +185,28 @@ int slurm_spank_job_prolog(spank_t sp, int ac, char *av[]) {
 }
 
 int slurm_spank_init_post_opt(spank_t sp, int, char **) {
-  slurm_debug("slurm_ro_crate_plugin: -> init_post_opt remote=%d", spank_remote(sp));
   return SLURM_SUCCESS;
 }
 
 int slurm_spank_local_user_init(spank_t, int, char **) {
-  slurm_debug("slurm_ro_crate_plugin: -> local_user_init");
   return SLURM_SUCCESS;
 }
 
 int slurm_spank_user_init(spank_t sp, int, char **) {
-  slurm_debug("slurm_ro_crate_plugin: -> user_init remote=%d", spank_remote(sp));
   return SLURM_SUCCESS;
 }
 
 int slurm_spank_task_init_privileged(spank_t sp, int ac, char *av[]) {
-  slurm_debug("slurm_ro_crate_plugin: -> task_init_privileged");
-
   try {
     ROCrateManager manager(sp, ac, av);
     // Populate manager.crate here
+    std::vector<std::string> job_argv = get_job_argv(sp);
+
+    // Check if argument is batch script
+    if (job_argv.size() > 0 && job_argv[0].find("slurm_script") != std::string::npos) {
+      slurm_info("slurm_ro_crate_plugin: Detected batch script");
+      parse_batch_script(job_argv[0]);
+    }
   } catch (const std::exception &e) {
     slurm_error("slurm_ro_crate_plugin: %s", e.what());
     return SLURM_ERROR;
@@ -202,13 +216,10 @@ int slurm_spank_task_init_privileged(spank_t sp, int ac, char *av[]) {
 }
 
 int slurm_spank_task_init(spank_t, int, char **) {
-  slurm_debug("slurm_ro_crate_plugin: -> task_init");
   return SLURM_SUCCESS;
 }
 
 int slurm_spank_task_post_fork(spank_t sp, int ac, char *av[]) {
-  slurm_debug("slurm_ro_crate_plugin: -> task_post_fork");
-
   try {
     ROCrateManager manager(sp, ac, av);
     // Populate manager.crate here
@@ -222,8 +233,6 @@ int slurm_spank_task_post_fork(spank_t sp, int ac, char *av[]) {
 
 int slurm_spank_task_exit(spank_t sp, int ac, char *av[]) {
   uint32_t status = 0;
-  slurm_debug("slurm_ro_crate_plugin: -> task_exit");
-
   try {
     ROCrateManager manager(sp, ac, av);
     // Populate manager.crate here
@@ -232,14 +241,13 @@ int slurm_spank_task_exit(spank_t sp, int ac, char *av[]) {
     return SLURM_ERROR;
   }
 
-  if (spank_get_item(sp, S_TASK_EXIT_STATUS, &status) == ESPANK_SUCCESS)
-    slurm_debug("slurm_ro_crate_plugin: exit_status=%d", status);
+  //if (spank_get_item(sp, S_TASK_EXIT_STATUS, &status) == ESPANK_SUCCESS)
+  //  slurm_debug("slurm_ro_crate_plugin: exit_status=%d", status);
 
   return SLURM_SUCCESS;
 }
 
 int slurm_spank_exit(spank_t sp, int ac, char *av[]) {
-  slurm_debug("slurm_ro_crate_plugin: -> exit remote=%d", spank_remote(sp));
   if (!spank_remote(sp)) return SLURM_SUCCESS;
 
   try {
@@ -253,8 +261,6 @@ int slurm_spank_exit(spank_t sp, int ac, char *av[]) {
 }
 
 int slurm_spank_job_epilog(spank_t sp, int ac, char *av[]) {
-  slurm_debug("slurm_ro_crate_plugin: -> job_epilog remote=%d", spank_remote(sp));
-
   try {
     ROCrateManager manager(sp, ac, av);
 
@@ -316,7 +322,102 @@ std::string get_current_time() {
   char timeString[std::size("yyyy-mm-ddThh:mm:ssZ")];
   std::strftime(std::data(timeString), std::size(timeString),
                 "%FT%TZ", std::gmtime(&time));
-  slurm_debug("slurm_ro_crate_plugin: Current time is %s", timeString);
   return std::string(timeString);
 };
 
+
+std::vector<std::string> get_job_argv(spank_t sp) {
+  int argc;
+  char **argv;
+  
+  try {
+    spank_get_item(sp, S_JOB_ARGV, &argc, &argv);
+  } catch (const std::exception &e) {
+    throw std::runtime_error("Failed to get job command line arguments: " + std::string(e.what()));
+  }
+
+  std::vector<std::string> args(argv, argv + argc);
+  for (const auto &arg : args) {
+    slurm_debug("slurm_ro_crate_plugin: Task argument: %s", arg.c_str());
+  }
+  
+  return args;
+}
+
+Batch parse_batch_script(const std::string &script_path) {
+  // Open the batch script file
+  std::ifstream script_file(script_path);
+  if (!script_file.is_open()) {
+    throw std::runtime_error("Failed to open batch script: " + script_path);
+  }
+
+  // Set up the batch container
+  Batch batch;
+
+  // Set up the peglib parser
+  peg::parser parser(R"(
+    Statement     <- 'module' Action ModuleList
+    Action        <- 'load' / 'add'
+    ModuleList    <- Module (Module)*
+    Module        <- ModuleName ('/' ModuleVersion)?
+    ModuleName    <- < [a-zA-Z0-9_.-]+ >
+    ModuleVersion <- < [a-zA-Z0-9_.-]+ >
+    %whitespace   <- [ \t\r\n]*
+  )");
+
+  // Check if the parser was created successfully
+  if (!parser) {
+    std::cerr << "Invalid grammar!" << std::endl;
+    throw std::runtime_error("Invalid grammar for batch script parser");
+  }
+
+  // Set up the semantic actions for the parser
+  parser["ModuleName"] = [](const peg::SemanticValues &sv) {
+    return sv.token_to_string();
+  };
+
+  parser["ModuleVersion"] = [](const peg::SemanticValues &sv) {
+    return sv.token_to_string();
+  };
+
+  parser["Module"] = [&](const peg::SemanticValues &sv) {
+    Module module;
+    module.name = std::any_cast<std::string>(sv[0]);
+    if (sv.size() > 1) {
+      module.version = std::any_cast<std::string>(sv[1]);
+    }
+    batch.modules.push_back(module);
+  };
+
+  // Set up the error handler for the parser
+  parser.set_logger([](size_t line, size_t col, const std::string &msg) {
+    slurm_error("slurm_ro_crate_plugin: Parser error at line %zu, column %zu: %s", line, col, msg.c_str());
+  });
+
+  // Parse the batch script file line by line
+  std::string line;
+  while (std::getline(script_file, line)) {
+    // Skip empty lines and comments
+    if (line.empty() || line[0] == '#') {
+      continue;
+    }
+
+    // Filter out lines that do not contain "module load"
+    if (line.find("module load") == std::string::npos) {
+      continue;
+    }
+
+    // Parse the line
+    if (!parser.parse(line)) {
+      throw std::runtime_error("Failed to parse batch script line: " + line);
+    }
+  }
+
+  // Print the parsed modules for debugging
+  for (const auto &module : batch.modules) {
+    slurm_debug("slurm_ro_crate_plugin: Parsed module: %s, version: %s", module.name.c_str(), module.version.c_str());
+  }
+  
+
+  return batch;
+}
