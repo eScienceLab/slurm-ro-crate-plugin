@@ -164,18 +164,6 @@ int slurm_spank_job_prolog(spank_t sp, int ac, char *av[]) {
       job.set("agent", agent);
       manager.crate.addEntity("#job" + std::to_string(job_id), job);
       rootData.set("mentions", job);
-
-      // Define the instrument entity
-      Entity instrument({"SoftwareApplication"});
-      manager.crate.addEntity("#instrument", instrument);
-
-      // Define the object (input) entity
-      Entity object({"Dataset"});
-      manager.crate.addEntity("#object", object);
-
-      // Define the result (output) entity
-      Entity result({"Dataset"});
-      manager.crate.addEntity("#result", result);
     }
   } catch (const std::exception &e) {
     slurm_error("slurm_ro_crate_plugin: Failed to initialize RO-Crate: %s", e.what());
@@ -365,13 +353,19 @@ Batch parse_batch_script(const std::string &script_path) {
 
   // Set up the peglib parser
   peg::parser parser(R"(
-    Statement     <- 'module' Action ModuleList
-    Action        <- 'load' / 'add'
-    ModuleList    <- Module (Module)*
-    Module        <- ModuleName ('/' ModuleVersion)?
-    ModuleName    <- < [a-zA-Z0-9_.-]+ >
-    ModuleVersion <- < [a-zA-Z0-9_.-]+ >
-    %whitespace   <- [ \t\r\n]*
+    Statement       <- ModuleStatement / ExeStatement
+    ModuleStatement <- 'module' Action ModuleList
+    Action          <- 'load' / 'add'
+    ModuleList      <- Module (Module)*
+    Module          <- ModuleName ('/' ModuleVersion)?
+    ModuleName      <- < [a-zA-Z0-9_.-]+ >
+    ModuleVersion   <- < [a-zA-Z0-9_.-]+ >
+
+    ExeStatement    <- !Keyword ExeName !'=' (.)*
+    ExeName         <- < [a-zA-Z0-9_./-]+ >
+    Keyword         <- ('if'/'then'/'else'/'fi'/'for'/'while'/'do'/'done'/'export'/'source'/'local'/'set'/'cd'/'echo'/'eval'/'exit'/'return') ![a-zA-Z0-9_]
+
+    %whitespace     <- [ \t\r\n]*
   )");
 
   // Check if the parser was created successfully
@@ -398,6 +392,14 @@ Batch parse_batch_script(const std::string &script_path) {
     batch.modules.push_back(module);
   };
 
+  parser["ExeName"] = [](const peg::SemanticValues &sv) {
+    return sv.token_to_string();
+  };
+  
+  parser["ExeStatement"] = [&](const peg::SemanticValues &sv) {
+    batch.executables.push_back(std::any_cast<std::string>(sv[0]));
+  };
+
   // Set up the error handler for the parser
   parser.set_logger([](size_t line, size_t col, const std::string &msg) {
     slurm_error("slurm_ro_crate_plugin: Parser error at line %zu, column %zu: %s", line, col, msg.c_str());
@@ -411,11 +413,6 @@ Batch parse_batch_script(const std::string &script_path) {
       continue;
     }
 
-    // Filter out lines that do not contain "module load"
-    if (line.find("module load") == std::string::npos) {
-      continue;
-    }
-
     // Parse the line
     if (!parser.parse(line)) {
       throw std::runtime_error("Failed to parse batch script line: " + line);
@@ -426,12 +423,16 @@ Batch parse_batch_script(const std::string &script_path) {
   for (const auto &module : batch.modules) {
     slurm_debug("slurm_ro_crate_plugin: Parsed module: %s, version: %s", module.name.c_str(), module.version.c_str());
   }
-  
+
+  for (const auto &exe : batch.executables) {
+    slurm_debug("slurm_ro_crate_plugin: Parsed executable: %s", exe.c_str());
+  }
 
   return batch;
 }
 
 void add_batch_to_crate(ROCrate &crate, const Batch &batch, Entity &job) {
+  // Modules
   for (const auto &module : batch.modules) {
     // Create a unique identifier for the module entity based on its name and version
     std::string module_id = "#module_" + module.name +
@@ -450,5 +451,22 @@ void add_batch_to_crate(ROCrate &crate, const Batch &batch, Entity &job) {
     }
 
     job.set("instrument", crate.getEntity(module_id));
+  }
+
+  // Executables
+  for (const auto &exe : batch.executables) {
+    // Create a unique identifier for the executable entity based on its name
+    std::string exe_id = "#executable_" + exe;
+
+    // Check if the executable entity already exists in the crate, and if not, create it
+    try {
+      crate.getEntity(exe_id);
+    } catch (const std::runtime_error &) {
+      Entity exe_entity({"SoftwareApplication"});
+      exe_entity.set("name", exe);
+      crate.addEntity(exe_id, exe_entity);
+    }
+
+    job.set("instrument", crate.getEntity(exe_id));
   }
 }
