@@ -25,6 +25,7 @@ extern const unsigned int spank_plugin_version = 1;
 
 using ROCrate = rocrate::ROCrate;
 using Entity = rocrate::Entity;
+using ValueType = rocrate::ValueType;
 
 struct Module {
   std::string name;
