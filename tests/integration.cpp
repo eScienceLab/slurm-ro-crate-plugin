@@ -18,30 +18,51 @@
 
 std::string output_dir = "/tmp/spank-crates";
 
-std::string submit_job(const std::vector<std::string>& params) {
-  // Form the sbatch command
-  std::vector<std::string> args = {
-    "sbatch", "--parsable", "--wait"
-  };
-  args.insert(args.end(), params.begin(), params.end());
-
-  // Run the command and capture the output
+std::pair<int, std::string> run_command(const std::vector<std::string>& args) {
   std::string output;
   auto [status, ec] = reproc::run(
     args,
     reproc::options{},
     reproc::sink::string(output),
-    reproc::sink::null
-    );
+    reproc::sink::string(output)
+  );
+  if (ec) {
+    throw std::runtime_error("command failed to run: " + ec.message());
+  }
+  return {status, output};
+}
+
+std::string submit_job(const std::vector<std::string>& params) {
+  // Run the command and capture the output
+  auto [status, output] = run_command({"sbatch", "--parsable", "--wait", params[0]});
 
   // Check for errors
-  if (ec || status != 0) {
-    throw std::runtime_error("sbatch failed: " + (ec ? ec.message() : output));
+  if (status != 0) {
+    throw std::runtime_error("sbatch failed: " + output);
   }
-
+  
   // Strip the newline from the output (job ID) and return it
   output.erase(std::remove(output.begin(), output.end(), '\n'), output.end());
   return output;
+}
+
+void validate_crate(const std::vector<std::string>& params) {
+  // If available, run the RO-Crate validator on the generated crate and assert that it passes.
+  if (run_command({"which", "uvx"}).first != 0) {
+    SKIP("uvx not available, skipping crate validator check");
+  }
+
+  // Form the command to run the validator
+  std::filesystem::path crate_path = output_dir + "/" + params[0] + "/" + "ro-crate-metadata.json";
+
+  // Run the validator and capture the output
+  auto [validator_status, validator_output] = run_command({
+    "uvx", "--from", "roc-validator", "rocrate-validator", "validate", crate_path.string()
+  });
+
+  // Check for errors
+  INFO(validator_output);
+  REQUIRE(validator_status == 0);
 }
 
 TEST_CASE("a submitted job produces a valid RO-Crate", "[integration]") {
@@ -99,6 +120,9 @@ TEST_CASE("a submitted job produces a valid RO-Crate", "[integration]") {
       REQUIRE(entity.contains("identifier"));
     } 
   }
+
+  // Validate the crate using the RO-Crate validator if available.
+  validate_crate({job_id});
 }
 
 TEST_CASE("Multi-task job produces a valid RO-Crate", "[integration]") {
@@ -139,4 +163,7 @@ TEST_CASE("Multi-task job produces a valid RO-Crate", "[integration]") {
 
   REQUIRE(has_root_dataset);
   REQUIRE(has_root_descriptor);
+
+  // Validate the crate using the RO-Crate validator if available.
+  validate_crate({job_id});
 }
