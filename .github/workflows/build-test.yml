@@ -33,6 +33,9 @@ jobs:
       - name: Build
         run: cmake --build build
 
+      - name: Install plugin
+        run: sudo cmake --install build
+
       - name: Register plugin in plugstack.conf
         run: |
           echo "required /usr/local/lib/slurm/slurm-ro-crate-plugin.so output_dir=/tmp/spank-crates" | sudo tee -a /etc/slurm/plugstack.conf
