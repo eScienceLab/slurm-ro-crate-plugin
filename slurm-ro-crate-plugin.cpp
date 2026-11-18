@@ -140,7 +140,7 @@ int slurm_spank_job_prolog(spank_t sp, int ac, char *av[]) {
       manager.crate.addContext("wfr", "https://w3id.org/ro/terms/workflow-run/context");
 
       // Add the workflow run process entity to the crate
-      Entity wfrunProcess({"CreativeWork", "Profile"});
+      Entity wfrunProcess({"Profile"});
       wfrunProcess.set("name", "Process Run Crate");
       wfrunProcess.set("version", "0.6");
       manager.crate.addEntity("https://w3id.org/ro/wfrun/process/0.6", wfrunProcess);
@@ -480,7 +480,16 @@ void add_batch_to_crate(ROCrate &crate, const Batch &batch, Entity &job) {
       crate.getEntity(exe_id);
     } catch (const std::runtime_error &) {
       Entity exe_entity({"SoftwareApplication"});
+
+      // Executable name
       exe_entity.set("name", exe);
+
+      // Executable version (unknown, so placeholder)
+      exe_entity.set("version", "unknown");
+
+      // Executable URL (unknown, so placeholder)
+      exe_entity.set("url", "about:blank", ValueType::Reference);
+      
       crate.addEntity(exe_id, exe_entity);
     }
 
