@@ -36,8 +36,6 @@ jobs:
       - name: Register plugin in plugstack.conf
         run: |
           echo "required /usr/local/lib/slurm/slurm-ro-crate-plugin.so output_dir=/tmp/spank-crates" | sudo tee -a /etc/slurm/plugstack.conf
-          cat /etc/slurm/plugstack.conf
-          sudo systemctl restart slurmd slurmctld || true
 
       - name: Run integration tests
         run: ctest --test-dir build --output-on-failure
