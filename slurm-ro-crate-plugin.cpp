@@ -450,10 +450,20 @@ void add_batch_to_crate(ROCrate &crate, const Batch &batch, Entity &job) {
       crate.getEntity(module_id);
     } catch (const std::runtime_error &) {
       Entity module_entity({"SoftwareApplication"});
+
+      // Module name
       module_entity.set("name", module.name);
+
+      // Module version
       if (!module.version.empty()) {
-        module_entity.set("softwareVersion", module.version);
+        module_entity.set("version", module.version);
+      } else {
+        module_entity.set("version", "unknown");
       }
+
+      // Module URL (unknown, so placeholder)
+      module_entity.set("url", "about:blank", ValueType::Reference);
+      
       crate.addEntity(module_id, module_entity);
     }
 
