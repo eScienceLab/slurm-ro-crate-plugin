@@ -140,7 +140,7 @@ int slurm_spank_job_prolog(spank_t sp, int ac, char *av[]) {
       manager.crate.addContext("wfr", "https://w3id.org/ro/terms/workflow-run/context");
 
       // Add the workflow run process entity to the crate
-      Entity wfrunProcess({"CreativeWork"});
+      Entity wfrunProcess({"CreativeWork", "Profile"});
       wfrunProcess.set("name", "Process Run Crate");
       wfrunProcess.set("version", "0.6");
       manager.crate.addEntity("https://w3id.org/ro/wfrun/process/0.6", wfrunProcess);
