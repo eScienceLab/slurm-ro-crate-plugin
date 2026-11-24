@@ -251,9 +251,6 @@ int slurm_spank_task_exit(spank_t sp, int ac, char *av[]) {
     return SLURM_ERROR;
   }
 
-  //if (spank_get_item(sp, S_TASK_EXIT_STATUS, &status) == ESPANK_SUCCESS)
-  //  slurm_debug("slurm_ro_crate_plugin: exit_status=%d", status);
-
   return SLURM_SUCCESS;
 }
 
