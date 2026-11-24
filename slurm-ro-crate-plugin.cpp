@@ -475,9 +475,7 @@ void add_batch_to_crate(ROCrate &crate, const Batch &batch, Entity &job) {
     std::string exe_id = "#executable_" + exe;
 
     // Check if the executable entity already exists in the crate, and if not, create it
-    if (crate.hasEntity(exe_id)) {
-      crate.getEntity(exe_id);
-    } else {
+    if (!crate.hasEntity(exe_id)) {
       Entity& exe_entity = crate.addEntity(exe_id, {"SoftwareApplication"});
 
       // Executable name
