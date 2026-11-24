@@ -58,6 +58,11 @@ if (BUILD_TESTING)
   )
   FetchContent_MakeAvailable(reproc)
 
+  find_program(UVX_EXECUTABLE uvx)
+  if (NOT UVX_EXECUTABLE)
+    message(WARNING "uvx not found — RO-Crate validator test will be skipped")
+  endif()
+
   add_executable(slurm-ro-crate-plugin_tests
     tests/integration.cpp
   )
